@@ -1,0 +1,13 @@
+# Fallback max homes for a player with no LuckPerms meta set
+default-max-homes: 1
+
+# Absolute ceiling regardless of rank/meta (matches the "99" you mentioned)
+absolute-max-homes: 99
+
+# LuckPerms meta key read from each rank/group, e.g. group "vip" -> meta "homes-limit: 5"
+luckperms-meta-key: "homes-limit"
+
+gui:
+  title: "Homes"
+  rows: 6          # 6 rows = 54 slots, last row reserved for nav (Back / Show More)
+  per-page: 44      # home buttons per GUI page before "Show More" is needed
