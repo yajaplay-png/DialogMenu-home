@@ -35,6 +35,10 @@ public class HomesDialogService {
         return lastPage.getOrDefault(player.getUniqueId(), 0);
     }
 
+    // Minecraft Keys only allow [a-z0-9_\-./]+, so home names (which can have
+    // spaces/uppercase) can NEVER go directly into a Key. We reference homes
+    // by their list index instead (e.g. "open/0") and look the name up from
+    // the player's home list when handling the click.
     private Key key(String value) {
         return Key.key(NAMESPACE, value);
     }
@@ -61,7 +65,7 @@ public class HomesDialogService {
                 Home home = homeList.get(i);
                 buttons.add(ActionButton.builder(Component.text(home.getName()))
                         .tooltip(Component.text("Click to manage this home"))
-                        .action(DialogAction.customClick(key("open/" + home.getName()), null))
+                        .action(DialogAction.customClick(key("open/" + i), null))
                         .build());
             } else if (i < rankMax) {
                 buttons.add(ActionButton.builder(Component.text("New Home", NamedTextColor.GREEN))
@@ -93,20 +97,23 @@ public class HomesDialogService {
 
     /**
      * Per-home submenu: Teleport / Change Icon / Rename / Delete / Back.
+     * Referenced by list index, not name.
      */
-    public Dialog buildHomeDetail(Player player, String homeName) {
+    public Dialog buildHomeDetail(Player player, int index) {
+        Home home = plugin.getHomeManager().getHomes(player).get(index);
+
         List<ActionButton> buttons = List.of(
                 ActionButton.builder(Component.text("Teleport"))
-                        .action(DialogAction.customClick(key("teleport/" + homeName), null))
+                        .action(DialogAction.customClick(key("teleport/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Change Icon"))
-                        .action(DialogAction.customClick(key("icon/" + homeName), null))
+                        .action(DialogAction.customClick(key("icon/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Rename"))
-                        .action(DialogAction.customClick(key("rename/" + homeName), null))
+                        .action(DialogAction.customClick(key("rename/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Delete", NamedTextColor.RED))
-                        .action(DialogAction.customClick(key("delete/" + homeName), null))
+                        .action(DialogAction.customClick(key("delete/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Back"))
                         .action(DialogAction.customClick(key("page/" + getLastPage(player)), null))
@@ -114,7 +121,7 @@ public class HomesDialogService {
         );
 
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(Component.text(homeName)).build())
+                .base(DialogBase.builder(Component.text(home.getName())).build())
                 .type(DialogType.multiAction(buttons, null, 2)));
     }
 
@@ -122,19 +129,21 @@ public class HomesDialogService {
      * Text-input dialog for renaming a home. The typed value comes back
      * in the confirm button's DialogResponseView under the key "newname".
      */
-    public Dialog buildRenameDialog(String homeName) {
+    public Dialog buildRenameDialog(Player player, int index) {
+        Home home = plugin.getHomeManager().getHomes(player).get(index);
+
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(Component.text("Rename " + homeName))
+                .base(DialogBase.builder(Component.text("Rename " + home.getName()))
                         .inputs(List.of(
                                 DialogInput.text("newname", Component.text("New name")).build()
                         ))
                         .build())
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Confirm"))
-                                .action(DialogAction.customClick(key("confirmrename/" + homeName), null))
+                                .action(DialogAction.customClick(key("confirmrename/" + index), null))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
-                                .action(DialogAction.customClick(key("open/" + homeName), null))
+                                .action(DialogAction.customClick(key("open/" + index), null))
                                 .build()
                 )));
     }
@@ -143,19 +152,21 @@ public class HomesDialogService {
      * Text-input dialog for changing a home's icon. Player types a vanilla
      * material name (e.g. "diamond_block"); validated when they confirm.
      */
-    public Dialog buildIconDialog(String homeName) {
+    public Dialog buildIconDialog(Player player, int index) {
+        Home home = plugin.getHomeManager().getHomes(player).get(index);
+
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(Component.text("Change Icon: " + homeName))
+                .base(DialogBase.builder(Component.text("Change Icon: " + home.getName()))
                         .inputs(List.of(
                                 DialogInput.text("material", Component.text("Material name (e.g. diamond_block)")).build()
                         ))
                         .build())
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Confirm"))
-                                .action(DialogAction.customClick(key("confirmicon/" + homeName), null))
+                                .action(DialogAction.customClick(key("confirmicon/" + index), null))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
-                                .action(DialogAction.customClick(key("open/" + homeName), null))
+                                .action(DialogAction.customClick(key("open/" + index), null))
                                 .build()
                 )));
     }
