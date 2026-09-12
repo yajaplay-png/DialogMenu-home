@@ -8,6 +8,5 @@ absolute-max-homes: 99
 luckperms-meta-key: "homes-limit"
 
 gui:
-  title: "Homes"
-  rows: 6          # 6 rows = 54 slots, last row reserved for nav (Back / Show More)
-  per-page: 44      # home buttons per GUI page before "Show More" is needed
+  columns: 4        # how many buttons per row in the Dialog grid
+  per-page: 20      # home buttons per Dialog page before "Show More" is needed

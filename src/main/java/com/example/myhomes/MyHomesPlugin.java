@@ -1,16 +1,15 @@
 package com.example.myhomes;
 
 import com.example.myhomes.commands.HomesCommand;
-import com.example.myhomes.gui.HomesGUI;
-import com.example.myhomes.gui.HomesGUIListener;
+import com.example.myhomes.dialog.HomesDialogListener;
+import com.example.myhomes.dialog.HomesDialogService;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class MyHomesPlugin extends JavaPlugin {
 
     private HomeManager homeManager;
     private LuckPermsHook luckPermsHook;
-    private HomesGUI homesGUI;
-    private HomesGUIListener homesGUIListener;
+    private HomesDialogService homesDialogService;
 
     @Override
     public void onEnable() {
@@ -18,10 +17,9 @@ public class MyHomesPlugin extends JavaPlugin {
 
         this.luckPermsHook = new LuckPermsHook(this);
         this.homeManager = new HomeManager(this);
-        this.homesGUI = new HomesGUI(this);
-        this.homesGUIListener = new HomesGUIListener(this);
+        this.homesDialogService = new HomesDialogService(this);
 
-        getServer().getPluginManager().registerEvents(homesGUIListener, this);
+        getServer().getPluginManager().registerEvents(new HomesDialogListener(this), this);
         getCommand("homes").setExecutor(new HomesCommand(this));
 
         getLogger().info("MyHomes enabled - max homes are read from LuckPerms meta '"
@@ -43,11 +41,7 @@ public class MyHomesPlugin extends JavaPlugin {
         return luckPermsHook;
     }
 
-    public HomesGUI getHomesGUI() {
-        return homesGUI;
-    }
-
-    public HomesGUIListener getHomesGUIListener() {
-        return homesGUIListener;
+    public HomesDialogService getHomesDialogService() {
+        return homesDialogService;
     }
 }

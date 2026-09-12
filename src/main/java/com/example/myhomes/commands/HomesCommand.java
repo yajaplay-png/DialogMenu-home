@@ -20,7 +20,7 @@ public class HomesCommand implements CommandExecutor {
             sender.sendMessage("Only players can use this command.");
             return true;
         }
-        plugin.getHomesGUIListener().open(player, 0);
+        player.showDialog(plugin.getHomesDialogService().buildHomesList(player, 0));
         return true;
     }
 }
