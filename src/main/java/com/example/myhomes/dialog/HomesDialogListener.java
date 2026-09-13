@@ -93,7 +93,7 @@ public class HomesDialogListener implements Listener {
             case "icon" -> {
                 int index = Integer.parseInt(arg);
                 dialogs.setIconQuery(player, null);
-                player.showDialog(dialogs.buildIconResultsDialog(player, index, 0));
+                player.showDialog(dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconsearchprompt" -> player.showDialog(dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
@@ -103,19 +103,20 @@ public class HomesDialogListener implements Listener {
                 DialogResponseView view = event.getDialogResponseView();
                 String query = view == null ? null : view.getText("query");
                 dialogs.setIconQuery(player, query);
-                player.showDialog(dialogs.buildIconResultsDialog(player, index, 0));
+                player.showDialog(dialogs.buildIconResultsDialog(player, index));
             }
 
-            case "iconpage" -> {
-                String[] p = arg.split("/", 2);
-                int index = Integer.parseInt(p[0]);
-                int page = Integer.parseInt(p[1]);
-                player.showDialog(dialogs.buildIconResultsDialog(player, index, page));
+            case "iconshowmore" -> {
+                int index = Integer.parseInt(arg);
+                int columns = plugin.getConfig().getInt("gui.icon-columns", 4);
+                int rows = plugin.getConfig().getInt("gui.icon-rows", 4);
+                dialogs.revealMoreIcons(player, columns * rows, dialogs.countMatchingIcons(player));
+                player.showDialog(dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconresults" -> {
                 int index = Integer.parseInt(arg);
-                player.showDialog(dialogs.buildIconResultsDialog(player, index, dialogs.getIconPage(player)));
+                player.showDialog(dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconpick" -> {

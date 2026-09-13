@@ -35,9 +35,9 @@ public class HomesDialogService {
     // how many home slots each player currently has "revealed" via Show More
     // (cumulative - no page/back-and-forth, just grows until the hard cap)
     private final Map<UUID, Integer> visibleCount = new HashMap<>();
-    // per-player icon-search state (query text + current results page)
+    // per-player icon-search state (query text + how many results currently revealed)
     private final Map<UUID, String> iconQuery = new HashMap<>();
-    private final Map<UUID, Integer> iconPage = new HashMap<>();
+    private final Map<UUID, Integer> iconVisibleCount = new HashMap<>();
 
     // every material usable as an icon, alphabetical
     private static final List<Material> ALL_ICONS = java.util.Arrays.stream(Material.values())
@@ -79,7 +79,7 @@ public class HomesDialogService {
         int remainder = buttons.size() % columns;
         if (remainder == 0) return;
         for (int i = remainder; i < columns; i++) {
-            buttons.add(ActionButton.builder(Component.text(" ")).build());
+            buttons.add(ActionButton.builder(Component.text(" ")).width(BUTTON_WIDTH).build());
         }
     }
 
@@ -128,6 +128,7 @@ public class HomesDialogService {
                         .width(BUTTON_WIDTH)
                     .action(DialogAction.customClick(key("showmore"), null))
                     .build());
+            padToNewRow(buttons, columns);
         }
 
         return Dialog.create(builder -> builder.empty()
@@ -226,6 +227,7 @@ public class HomesDialogService {
 
     public void setIconQuery(Player player, String query) {
         iconQuery.put(player.getUniqueId(), query);
+        iconVisibleCount.remove(player.getUniqueId()); // reset reveal count for the new search
     }
 
     public String getIconQuery(Player player) {
@@ -233,12 +235,12 @@ public class HomesDialogService {
     }
 
     /**
-     * Step 2: paginated text list of matching item names. Clicking one goes
-     * to the preview screen; the actual icon graphic isn't shown here since
-     * Dialog buttons can't carry an item icon - only the preview/body can.
+     * Paginated... no wait, NOT paginated - cumulative, same as the Homes
+     * list. Clicking a result goes to the preview screen; the actual icon
+     * graphic isn't shown here since Dialog buttons can't carry an item icon
+     * - only the preview/body can.
      */
-    public Dialog buildIconResultsDialog(Player player, int index, int page) {
-        iconPage.put(player.getUniqueId(), page);
+    public Dialog buildIconResultsDialog(Player player, int index) {
         String query = getIconQuery(player);
 
         List<Material> pool = (query == null || query.isBlank())
@@ -249,12 +251,15 @@ public class HomesDialogService {
 
         int columns = plugin.getConfig().getInt("gui.icon-columns", 4);
         int rows = plugin.getConfig().getInt("gui.icon-rows", 4);
-        int perPage = columns * rows;
-        int start = page * perPage;
-        int end = Math.min(start + perPage, pool.size());
+        int batch = columns * rows;
+
+        int visible = Math.min(
+                iconVisibleCount.getOrDefault(player.getUniqueId(), batch),
+                pool.size()
+        );
 
         List<ActionButton> buttons = new ArrayList<>();
-        for (int i = start; i < end; i++) {
+        for (int i = 0; i < visible; i++) {
             Material material = pool.get(i);
             buttons.add(ActionButton.builder(Component.text(prettyName(material)))
                         .width(BUTTON_WIDTH)
@@ -263,16 +268,10 @@ public class HomesDialogService {
         }
 
         padToNewRow(buttons, columns);
-        if (page > 0) {
-            buttons.add(ActionButton.builder(Component.text("Previous Page"))
-                        .width(BUTTON_WIDTH)
-                    .action(DialogAction.customClick(key("iconpage/" + index + "/" + (page - 1)), null))
-                    .build());
-        }
-        if (end < pool.size()) {
+        if (visible < pool.size()) {
             buttons.add(ActionButton.builder(Component.text("Show More"))
                         .width(BUTTON_WIDTH)
-                    .action(DialogAction.customClick(key("iconpage/" + index + "/" + (page + 1)), null))
+                    .action(DialogAction.customClick(key("iconshowmore/" + index), null))
                     .build());
         }
         buttons.add(ActionButton.builder(Component.text("New Search"))
@@ -283,6 +282,7 @@ public class HomesDialogService {
                         .width(BUTTON_WIDTH)
                 .action(DialogAction.customClick(key("open/" + index), null))
                 .build());
+        padToNewRow(buttons, columns);
 
         String title = (query == null || query.isBlank()) ? "All Items" : "Results: " + query;
         return Dialog.create(builder -> builder.empty()
@@ -290,8 +290,17 @@ public class HomesDialogService {
                 .type(DialogType.multiAction(buttons, null, columns)));
     }
 
-    public int getIconPage(Player player) {
-        return iconPage.getOrDefault(player.getUniqueId(), 0);
+    public void revealMoreIcons(Player player, int batchSize, int poolSize) {
+        int current = iconVisibleCount.getOrDefault(player.getUniqueId(), batchSize);
+        iconVisibleCount.put(player.getUniqueId(), Math.min(current + batchSize, poolSize));
+    }
+
+    public int countMatchingIcons(Player player) {
+        String query = getIconQuery(player);
+        if (query == null || query.isBlank()) return ALL_ICONS.size();
+        return (int) ALL_ICONS.stream()
+                .filter(m -> m.name().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))
+                .count();
     }
 
     /**
