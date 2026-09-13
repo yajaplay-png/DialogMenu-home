@@ -12,6 +12,7 @@ import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -27,10 +28,13 @@ import java.util.UUID;
 public class HomesDialogService {
 
     private static final String NAMESPACE = "myhomes";
+    // vanilla's default button width (200) is huge - keep buttons compact
+    private static final int BUTTON_WIDTH = 90;
 
     private final MyHomesPlugin plugin;
-    // remembers which list page each player last had open, so "Back" returns them to it
-    private final Map<UUID, Integer> lastPage = new HashMap<>();
+    // how many home slots each player currently has "revealed" via Show More
+    // (cumulative - no page/back-and-forth, just grows until the hard cap)
+    private final Map<UUID, Integer> visibleCount = new HashMap<>();
     // per-player icon-search state (query text + current results page)
     private final Map<UUID, String> iconQuery = new HashMap<>();
     private final Map<UUID, Integer> iconPage = new HashMap<>();
@@ -47,8 +51,15 @@ public class HomesDialogService {
         this.plugin = plugin;
     }
 
-    public int getLastPage(Player player) {
-        return lastPage.getOrDefault(player.getUniqueId(), 0);
+    /** How many home slots are currently revealed for this player (grows via Show More). */
+    private int getVisibleCount(Player player, int batchSize, int hardCap) {
+        int current = visibleCount.getOrDefault(player.getUniqueId(), Math.min(batchSize, hardCap));
+        return Math.min(current, hardCap);
+    }
+
+    public void revealMore(Player player, int batchSize, int hardCap) {
+        int current = getVisibleCount(player, batchSize, hardCap);
+        visibleCount.put(player.getUniqueId(), Math.min(current + batchSize, hardCap));
     }
 
     // Minecraft Keys only allow [a-z0-9_\-./]+, so home names (which can have
@@ -59,56 +70,71 @@ public class HomesDialogService {
         return Key.key(NAMESPACE, value);
     }
 
+    // Dialog buttons fill left-to-right and wrap automatically, so if the
+    // content doesn't end on an exact multiple of the column count, nav
+    // buttons (Show More, Back, etc.) would land in the leftover slots of
+    // the SAME row instead of starting a clean new row below. Padding with
+    // blank, non-clickable buttons forces nav buttons onto their own row.
+    private void padToNewRow(List<ActionButton> buttons, int columns) {
+        int remainder = buttons.size() % columns;
+        if (remainder == 0) return;
+        for (int i = remainder; i < columns; i++) {
+            buttons.add(ActionButton.builder(Component.text(" ")).build());
+        }
+    }
+
     /**
      * The main "Homes" screen: existing homes, green "New Home" slots up to
      * the player's rank limit, and red "Locked" slots up to the absolute cap.
+     * "Show More" reveals additional rows in this SAME dialog cumulatively -
+     * there is no paging back and forth, it only grows until the hard cap.
      */
-    public Dialog buildHomesList(Player player, int page) {
-        lastPage.put(player.getUniqueId(), page);
-
+    public Dialog buildHomesList(Player player) {
         List<Home> homeList = plugin.getHomeManager().getHomes(player);
         int rankMax = plugin.getHomeManager().getMaxHomes(player);
         int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
         int columns = plugin.getConfig().getInt("gui.columns", 4);
         int rows = plugin.getConfig().getInt("gui.rows", 3);
-        int perPage = columns * rows;
+        int batch = columns * rows;
 
-        int start = page * perPage;
-        int end = Math.min(start + perPage, hardCap);
+        int visible = getVisibleCount(player, batch, hardCap);
 
         List<ActionButton> buttons = new ArrayList<>();
-        for (int i = start; i < end; i++) {
+        for (int i = 0; i < visible; i++) {
             if (i < homeList.size()) {
                 Home home = homeList.get(i);
                 buttons.add(ActionButton.builder(Component.text(home.getName()))
+                        .width(BUTTON_WIDTH)
                         .tooltip(Component.text("Click to manage this home"))
                         .action(DialogAction.customClick(key("open/" + i), null))
                         .build());
             } else if (i < rankMax) {
                 buttons.add(ActionButton.builder(Component.text("New Home", NamedTextColor.GREEN))
+                        .width(BUTTON_WIDTH)
                         .tooltip(Component.text("Save your current location as a home"))
                         .action(DialogAction.customClick(key("new"), null))
                         .build());
             } else {
                 buttons.add(ActionButton.builder(Component.text("Locked", NamedTextColor.RED))
+                        .width(BUTTON_WIDTH)
                         .tooltip(Component.text("Upgrade your rank to unlock this home slot"))
                         .build()); // no .action() -> clicking just closes, nothing happens
             }
         }
 
-        if (page > 0) {
-            buttons.add(ActionButton.builder(Component.text("Previous Page"))
-                    .action(DialogAction.customClick(key("page/" + (page - 1)), null))
-                    .build());
-        }
-        if (end < hardCap) {
+        padToNewRow(buttons, columns);
+        if (visible < hardCap) {
             buttons.add(ActionButton.builder(Component.text("Show More"))
-                    .action(DialogAction.customClick(key("page/" + (page + 1)), null))
+                        .width(BUTTON_WIDTH)
+                    .action(DialogAction.customClick(key("showmore"), null))
                     .build());
         }
 
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(Component.text("Homes")).build())
+                .base(DialogBase.builder(Component.text("SAGA HOME")
+                                .color(NamedTextColor.GOLD)
+                                .decorate(TextDecoration.BOLD))
+                        .build())
                 .type(DialogType.multiAction(buttons, null, columns)));
     }
 
@@ -121,19 +147,24 @@ public class HomesDialogService {
 
         List<ActionButton> buttons = List.of(
                 ActionButton.builder(Component.text("Teleport"))
+                        .width(BUTTON_WIDTH)
                         .action(DialogAction.customClick(key("teleport/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Change Icon"))
+                        .width(BUTTON_WIDTH)
                         .action(DialogAction.customClick(key("icon/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Rename"))
+                        .width(BUTTON_WIDTH)
                         .action(DialogAction.customClick(key("rename/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Delete", NamedTextColor.RED))
+                        .width(BUTTON_WIDTH)
                         .action(DialogAction.customClick(key("delete/" + index), null))
                         .build(),
                 ActionButton.builder(Component.text("Back"))
-                        .action(DialogAction.customClick(key("page/" + getLastPage(player)), null))
+                        .width(BUTTON_WIDTH)
+                        .action(DialogAction.customClick(key("home"), null))
                         .build()
         );
 
@@ -161,9 +192,11 @@ public class HomesDialogService {
                         .build())
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Confirm"))
+                        .width(BUTTON_WIDTH)
                                 .action(DialogAction.customClick(key("confirmrename/" + index), null))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
+                        .width(BUTTON_WIDTH)
                                 .action(DialogAction.customClick(key("open/" + index), null))
                                 .build()
                 )));
@@ -181,9 +214,11 @@ public class HomesDialogService {
                         .build())
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Search"))
+                        .width(BUTTON_WIDTH)
                                 .action(DialogAction.customClick(key("iconsearch/" + index), null))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
+                        .width(BUTTON_WIDTH)
                                 .action(DialogAction.customClick(key("open/" + index), null))
                                 .build()
                 )));
@@ -222,24 +257,30 @@ public class HomesDialogService {
         for (int i = start; i < end; i++) {
             Material material = pool.get(i);
             buttons.add(ActionButton.builder(Component.text(prettyName(material)))
+                        .width(BUTTON_WIDTH)
                     .action(DialogAction.customClick(key("iconpick/" + index + "/" + material.name().toLowerCase(Locale.ROOT)), null))
                     .build());
         }
 
+        padToNewRow(buttons, columns);
         if (page > 0) {
             buttons.add(ActionButton.builder(Component.text("Previous Page"))
+                        .width(BUTTON_WIDTH)
                     .action(DialogAction.customClick(key("iconpage/" + index + "/" + (page - 1)), null))
                     .build());
         }
         if (end < pool.size()) {
             buttons.add(ActionButton.builder(Component.text("Show More"))
+                        .width(BUTTON_WIDTH)
                     .action(DialogAction.customClick(key("iconpage/" + index + "/" + (page + 1)), null))
                     .build());
         }
         buttons.add(ActionButton.builder(Component.text("New Search"))
-                .action(DialogAction.customClick(key("icon/" + index), null))
+                        .width(BUTTON_WIDTH)
+                .action(DialogAction.customClick(key("iconsearchprompt/" + index), null))
                 .build());
         buttons.add(ActionButton.builder(Component.text("Back"))
+                        .width(BUTTON_WIDTH)
                 .action(DialogAction.customClick(key("open/" + index), null))
                 .build());
 
@@ -266,9 +307,11 @@ public class HomesDialogService {
                         .build())
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Confirm"))
+                        .width(BUTTON_WIDTH)
                                 .action(DialogAction.customClick(key("iconconfirm/" + index + "/" + material.name().toLowerCase(Locale.ROOT)), null))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
+                        .width(BUTTON_WIDTH)
                                 .action(DialogAction.customClick(key("iconresults/" + index), null))
                                 .build()
                 )));

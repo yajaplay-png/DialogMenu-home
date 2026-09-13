@@ -39,7 +39,15 @@ public class HomesDialogListener implements Listener {
         List<Home> homes = plugin.getHomeManager().getHomes(player);
 
         switch (action) {
-            case "page" -> player.showDialog(dialogs.buildHomesList(player, Integer.parseInt(arg)));
+            case "home" -> player.showDialog(dialogs.buildHomesList(player));
+
+            case "showmore" -> {
+                int columns = plugin.getConfig().getInt("gui.columns", 4);
+                int rows = plugin.getConfig().getInt("gui.rows", 3);
+                int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
+                dialogs.revealMore(player, columns * rows, hardCap);
+                player.showDialog(dialogs.buildHomesList(player));
+            }
 
             case "new" -> {
                 Home created = plugin.getHomeManager().createHome(player);
@@ -48,7 +56,7 @@ public class HomesDialogListener implements Listener {
                 } else {
                     player.sendMessage("§aCreated " + created.getName() + " at your current location.");
                 }
-                player.showDialog(dialogs.buildHomesList(player, dialogs.getLastPage(player)));
+                player.showDialog(dialogs.buildHomesList(player));
             }
 
             case "open" -> player.showDialog(dialogs.buildHomeDetail(player, Integer.parseInt(arg)));
@@ -58,7 +66,7 @@ public class HomesDialogListener implements Listener {
             case "delete" -> withHome(homes, arg, home -> {
                 plugin.getHomeManager().deleteHome(player, home);
                 player.sendMessage("§aDeleted " + home.getName() + ".");
-                player.showDialog(dialogs.buildHomesList(player, dialogs.getLastPage(player)));
+                player.showDialog(dialogs.buildHomesList(player));
             });
 
             case "rename" -> player.showDialog(dialogs.buildRenameDialog(player, Integer.parseInt(arg)));
@@ -77,12 +85,18 @@ public class HomesDialogListener implements Listener {
                     plugin.getHomeManager().renameHome(home, newName.trim());
                     player.sendMessage("§aRenamed to " + newName.trim() + ".");
                 });
-                player.showDialog(dialogs.buildHomesList(player, dialogs.getLastPage(player)));
+                player.showDialog(dialogs.buildHomesList(player));
             }
 
             // --- icon flow: search -> results (text only) -> preview (real icon) -> confirm ---
 
-            case "icon" -> player.showDialog(dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
+            case "icon" -> {
+                int index = Integer.parseInt(arg);
+                dialogs.setIconQuery(player, null);
+                player.showDialog(dialogs.buildIconResultsDialog(player, index, 0));
+            }
+
+            case "iconsearchprompt" -> player.showDialog(dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
 
             case "iconsearch" -> {
                 int index = Integer.parseInt(arg);
