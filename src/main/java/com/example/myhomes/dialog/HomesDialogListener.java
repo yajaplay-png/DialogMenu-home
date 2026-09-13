@@ -6,10 +6,13 @@ import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.DialogResponseView;
 import io.papermc.paper.event.player.PlayerCustomClickEvent;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
 
@@ -50,10 +53,7 @@ public class HomesDialogListener implements Listener {
 
             case "open" -> player.showDialog(dialogs.buildHomeDetail(player, Integer.parseInt(arg)));
 
-            case "teleport" -> withHome(homes, arg, home -> {
-                player.teleport(home.getLocation());
-                player.sendMessage("§aTeleported to " + home.getName() + ".");
-            });
+            case "teleport" -> withHome(homes, arg, home -> startTeleportCountdown(player, home));
 
             case "delete" -> withHome(homes, arg, home -> {
                 plugin.getHomeManager().deleteHome(player, home);
@@ -80,22 +80,48 @@ public class HomesDialogListener implements Listener {
                 player.showDialog(dialogs.buildHomesList(player, dialogs.getLastPage(player)));
             }
 
-            case "icon" -> player.showDialog(dialogs.buildIconDialog(player, Integer.parseInt(arg)));
+            // --- icon flow: search -> results (text only) -> preview (real icon) -> confirm ---
 
-            case "confirmicon" -> {
+            case "icon" -> player.showDialog(dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
+
+            case "iconsearch" -> {
                 int index = Integer.parseInt(arg);
                 DialogResponseView view = event.getDialogResponseView();
-                if (view == null) return;
-                String materialName = view.getText("material");
-                Material material = materialName == null ? null : Material.matchMaterial(materialName.trim());
-                if (material == null) {
-                    player.sendMessage("§cUnknown material name. Try e.g. diamond_block.");
-                    player.showDialog(dialogs.buildHomeDetail(player, index));
-                    return;
+                String query = view == null ? null : view.getText("query");
+                dialogs.setIconQuery(player, query);
+                player.showDialog(dialogs.buildIconResultsDialog(player, index, 0));
+            }
+
+            case "iconpage" -> {
+                String[] p = arg.split("/", 2);
+                int index = Integer.parseInt(p[0]);
+                int page = Integer.parseInt(p[1]);
+                player.showDialog(dialogs.buildIconResultsDialog(player, index, page));
+            }
+
+            case "iconresults" -> {
+                int index = Integer.parseInt(arg);
+                player.showDialog(dialogs.buildIconResultsDialog(player, index, dialogs.getIconPage(player)));
+            }
+
+            case "iconpick" -> {
+                String[] p = arg.split("/", 2);
+                int index = Integer.parseInt(p[0]);
+                Material material = Material.matchMaterial(p[1]);
+                if (material == null) return;
+                player.showDialog(dialogs.buildIconPreviewDialog(index, material));
+            }
+
+            case "iconconfirm" -> {
+                String[] p = arg.split("/", 2);
+                int index = Integer.parseInt(p[0]);
+                Material material = Material.matchMaterial(p[1]);
+                if (material != null) {
+                    withHome(homes, String.valueOf(index), home -> {
+                        home.setIcon(material);
+                        player.sendMessage("§aIcon updated.");
+                    });
                 }
-                Material finalMaterial = material;
-                withHome(homes, arg, home -> home.setIcon(finalMaterial));
-                player.sendMessage("§aIcon updated.");
                 player.showDialog(dialogs.buildHomeDetail(player, index));
             }
 
@@ -107,5 +133,45 @@ public class HomesDialogListener implements Listener {
         int index = Integer.parseInt(indexStr);
         if (index < 0 || index >= homes.size()) return;
         action.accept(homes.get(index));
+    }
+
+    /**
+     * Counts down from teleport-delay-seconds, showing "Teleporting in N..."
+     * in the action bar (bottom-center of the screen). Cancels if the player
+     * moves during the countdown.
+     */
+    private void startTeleportCountdown(Player player, Home home) {
+        int delay = plugin.getConfig().getInt("teleport-delay-seconds", 5);
+        Location startLocation = player.getLocation();
+        Location destination = home.getLocation();
+        String homeName = home.getName();
+
+        BukkitTask[] taskHolder = new BukkitTask[1];
+        int[] remaining = {delay};
+
+        taskHolder[0] = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!player.isOnline()) {
+                taskHolder[0].cancel();
+                return;
+            }
+            if (hasMoved(player.getLocation(), startLocation)) {
+                player.sendActionBar(Component.text("§cTeleport cancelled - you moved!"));
+                taskHolder[0].cancel();
+                return;
+            }
+            if (remaining[0] <= 0) {
+                player.teleport(destination);
+                player.sendActionBar(Component.text("§aTeleported to " + homeName + "."));
+                taskHolder[0].cancel();
+                return;
+            }
+            player.sendActionBar(Component.text("§eTeleporting in §c" + remaining[0] + "§e..."));
+            remaining[0]--;
+        }, 0L, 20L);
+    }
+
+    private boolean hasMoved(Location current, Location start) {
+        if (!current.getWorld().equals(start.getWorld())) return true;
+        return current.distanceSquared(start) > 0.01;
     }
 }
