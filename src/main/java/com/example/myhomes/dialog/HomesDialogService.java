@@ -12,6 +12,7 @@ import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -30,6 +31,9 @@ public class HomesDialogService {
     private static final String NAMESPACE = "myhomes";
     // vanilla's default button width (200) is huge - keep buttons compact
     private static final int BUTTON_WIDTH = 90;
+    // exact hex colors (not a gradient) used for the small-caps styled text
+    private static final TextColor BLUE = TextColor.fromHexString("#3B82F6");
+    private static final TextColor WHITE = TextColor.fromHexString("#FFFFFF");
 
     private final MyHomesPlugin plugin;
     // how many home slots each player currently has "revealed" via Show More
@@ -62,25 +66,18 @@ public class HomesDialogService {
         visibleCount.put(player.getUniqueId(), Math.min(current + batchSize, hardCap));
     }
 
+    /** Shrinks the revealed count back by one batch, never below the initial batch size. */
+    public void revealLess(Player player, int batchSize, int hardCap) {
+        int current = getVisibleCount(player, batchSize, hardCap);
+        visibleCount.put(player.getUniqueId(), Math.max(current - batchSize, batchSize));
+    }
+
     // Minecraft Keys only allow [a-z0-9_\-./]+, so home names (which can have
     // spaces/uppercase) can NEVER go directly into a Key. We reference homes
     // by their list index instead (e.g. "open/0") and look the name up from
     // the player's home list when handling the click.
     private Key key(String value) {
         return Key.key(NAMESPACE, value);
-    }
-
-    // Dialog buttons fill left-to-right and wrap automatically, so if the
-    // content doesn't end on an exact multiple of the column count, nav
-    // buttons (Show More, Back, etc.) would land in the leftover slots of
-    // the SAME row instead of starting a clean new row below. Padding with
-    // blank, non-clickable buttons forces nav buttons onto their own row.
-    private void padToNewRow(List<ActionButton> buttons, int columns) {
-        int remainder = buttons.size() % columns;
-        if (remainder == 0) return;
-        for (int i = remainder; i < columns; i++) {
-            buttons.add(ActionButton.builder(Component.text(" ")).width(BUTTON_WIDTH).build());
-        }
     }
 
     /**
@@ -122,19 +119,23 @@ public class HomesDialogService {
             }
         }
 
-        padToNewRow(buttons, columns);
         if (visible < hardCap) {
             buttons.add(ActionButton.builder(Component.text("Show More"))
                         .width(BUTTON_WIDTH)
                     .action(DialogAction.customClick(key("showmore"), null))
                     .build());
-            padToNewRow(buttons, columns);
+        }
+        if (visible > batch) {
+            buttons.add(ActionButton.builder(Component.text("Previous"))
+                        .width(BUTTON_WIDTH)
+                    .action(DialogAction.customClick(key("showless"), null))
+                    .build());
         }
 
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(Component.text("SAGA HOME")
-                                .color(NamedTextColor.GOLD)
-                                .decorate(TextDecoration.BOLD))
+                .base(DialogBase.builder(
+                                Component.text("ꜱᴀɢᴀ", BLUE, TextDecoration.BOLD)
+                                        .append(Component.text(" ʜᴏᴍᴇ", WHITE, TextDecoration.BOLD)))
                         .build())
                 .type(DialogType.multiAction(buttons, null, columns)));
     }
@@ -267,7 +268,6 @@ public class HomesDialogService {
                     .build());
         }
 
-        padToNewRow(buttons, columns);
         if (visible < pool.size()) {
             buttons.add(ActionButton.builder(Component.text("Show More"))
                         .width(BUTTON_WIDTH)
@@ -282,7 +282,6 @@ public class HomesDialogService {
                         .width(BUTTON_WIDTH)
                 .action(DialogAction.customClick(key("open/" + index), null))
                 .build());
-        padToNewRow(buttons, columns);
 
         String title = (query == null || query.isBlank()) ? "All Items" : "Results: " + query;
         return Dialog.create(builder -> builder.empty()

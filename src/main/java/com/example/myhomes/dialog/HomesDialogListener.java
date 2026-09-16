@@ -7,8 +7,11 @@ import io.papermc.paper.dialog.DialogResponseView;
 import io.papermc.paper.event.player.PlayerCustomClickEvent;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -39,9 +42,13 @@ public class HomesDialogListener implements Listener {
         List<Home> homes = plugin.getHomeManager().getHomes(player);
 
         switch (action) {
-            case "home" -> player.showDialog(dialogs.buildHomesList(player));
+            case "home" -> {
+                playSound(player, Sound.BLOCK_CHEST_OPEN);
+                player.showDialog(dialogs.buildHomesList(player));
+            }
 
             case "showmore" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int columns = plugin.getConfig().getInt("gui.columns", 4);
                 int rows = plugin.getConfig().getInt("gui.rows", 3);
                 int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
@@ -49,7 +56,17 @@ public class HomesDialogListener implements Listener {
                 player.showDialog(dialogs.buildHomesList(player));
             }
 
+            case "showless" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+                int columns = plugin.getConfig().getInt("gui.columns", 4);
+                int rows = plugin.getConfig().getInt("gui.rows", 3);
+                int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
+                dialogs.revealLess(player, columns * rows, hardCap);
+                player.showDialog(dialogs.buildHomesList(player));
+            }
+
             case "new" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 Home created = plugin.getHomeManager().createHome(player);
                 if (created == null) {
                     player.sendMessage("§cYou've reached your home limit for your current rank.");
@@ -59,19 +76,30 @@ public class HomesDialogListener implements Listener {
                 player.showDialog(dialogs.buildHomesList(player));
             }
 
-            case "open" -> player.showDialog(dialogs.buildHomeDetail(player, Integer.parseInt(arg)));
+            case "open" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+                player.showDialog(dialogs.buildHomeDetail(player, Integer.parseInt(arg)));
+            }
 
-            case "teleport" -> withHome(homes, arg, home -> startTeleportCountdown(player, home));
+            case "teleport" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+                withHome(homes, arg, home -> startTeleportCountdown(player, home));
+            }
 
             case "delete" -> withHome(homes, arg, home -> {
+                playSound(player, Sound.BLOCK_ANVIL_LAND);
                 plugin.getHomeManager().deleteHome(player, home);
                 player.sendMessage("§aDeleted " + home.getName() + ".");
                 player.showDialog(dialogs.buildHomesList(player));
             });
 
-            case "rename" -> player.showDialog(dialogs.buildRenameDialog(player, Integer.parseInt(arg)));
+            case "rename" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+                player.showDialog(dialogs.buildRenameDialog(player, Integer.parseInt(arg)));
+            }
 
             case "confirmrename" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int index = Integer.parseInt(arg);
                 DialogResponseView view = event.getDialogResponseView();
                 if (view == null) return;
@@ -91,14 +119,19 @@ public class HomesDialogListener implements Listener {
             // --- icon flow: search -> results (text only) -> preview (real icon) -> confirm ---
 
             case "icon" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int index = Integer.parseInt(arg);
                 dialogs.setIconQuery(player, null);
                 player.showDialog(dialogs.buildIconResultsDialog(player, index));
             }
 
-            case "iconsearchprompt" -> player.showDialog(dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
+            case "iconsearchprompt" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+                player.showDialog(dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
+            }
 
             case "iconsearch" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int index = Integer.parseInt(arg);
                 DialogResponseView view = event.getDialogResponseView();
                 String query = view == null ? null : view.getText("query");
@@ -107,6 +140,7 @@ public class HomesDialogListener implements Listener {
             }
 
             case "iconshowmore" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int index = Integer.parseInt(arg);
                 int columns = plugin.getConfig().getInt("gui.icon-columns", 4);
                 int rows = plugin.getConfig().getInt("gui.icon-rows", 4);
@@ -115,11 +149,13 @@ public class HomesDialogListener implements Listener {
             }
 
             case "iconresults" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int index = Integer.parseInt(arg);
                 player.showDialog(dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconpick" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 String[] p = arg.split("/", 2);
                 int index = Integer.parseInt(p[0]);
                 Material material = Material.matchMaterial(p[1]);
@@ -128,6 +164,7 @@ public class HomesDialogListener implements Listener {
             }
 
             case "iconconfirm" -> {
+                playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 String[] p = arg.split("/", 2);
                 int index = Integer.parseInt(p[0]);
                 Material material = Material.matchMaterial(p[1]);
@@ -144,14 +181,22 @@ public class HomesDialogListener implements Listener {
         }
     }
 
+    private void playSound(Player player, Sound sound) {
+        player.playSound(player.getLocation(), sound, 1f, 1f);
+    }
+
     private void withHome(List<Home> homes, String indexStr, java.util.function.Consumer<Home> action) {
         int index = Integer.parseInt(indexStr);
         if (index < 0 || index >= homes.size()) return;
         action.accept(homes.get(index));
     }
 
+    // exact hex colors (not a gradient) for the small-caps "ᴛᴇʟᴇᴘᴏʀᴛ ɪɴ" text
+    private static final TextColor BLUE = TextColor.fromHexString("#3B82F6");
+    private static final TextColor WHITE = TextColor.fromHexString("#FFFFFF");
+
     /**
-     * Counts down from teleport-delay-seconds, showing "Teleporting in N..."
+     * Counts down from teleport-delay-seconds, showing "ᴛᴇʟᴇᴘᴏʀᴛ ɪɴ N..."
      * in the action bar (bottom-center of the screen). Cancels if the player
      * moves during the countdown.
      */
@@ -170,17 +215,22 @@ public class HomesDialogListener implements Listener {
                 return;
             }
             if (hasMoved(player.getLocation(), startLocation)) {
-                player.sendActionBar(Component.text("§cTeleport cancelled - you moved!"));
+                player.sendActionBar(Component.text("Teleport cancelled - you moved!", NamedTextColor.RED));
                 taskHolder[0].cancel();
                 return;
             }
             if (remaining[0] <= 0) {
                 player.teleport(destination);
-                player.sendActionBar(Component.text("§aTeleported to " + homeName + "."));
+                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
+                player.sendActionBar(Component.text("Teleported to " + homeName + ".", NamedTextColor.GREEN));
                 taskHolder[0].cancel();
                 return;
             }
-            player.sendActionBar(Component.text("§eTeleporting in §c" + remaining[0] + "§e..."));
+            Component countdown = Component.text("ᴛᴇʟᴇᴘᴏʀᴛ", BLUE)
+                    .append(Component.text(" ɪɴ ", WHITE))
+                    .append(Component.text(remaining[0], BLUE))
+                    .append(Component.text("...", WHITE));
+            player.sendActionBar(countdown);
             remaining[0]--;
         }, 0L, 20L);
     }
