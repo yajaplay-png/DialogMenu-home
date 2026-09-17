@@ -7,6 +7,7 @@ commands:
   homes:
     description: Open the homes GUI
     usage: /homes
+    aliases: [home]
   sethome:
     description: Save your current location as a home
     usage: /sethome <name>
