@@ -154,6 +154,7 @@ public class HomesDialogService {
                 .base(DialogBase.builder(
                                 Component.text("ꜱᴀɢᴀ", BLUE, TextDecoration.BOLD)
                                         .append(Component.text(" ʜᴏᴍᴇ", WHITE, TextDecoration.BOLD)))
+                        .pause(false)
                         .afterAction(DialogBase.DialogAfterAction.NONE)
                         .build())
                 .type(DialogType.multiAction(buttons, null, columns)));
@@ -206,6 +207,7 @@ public class HomesDialogService {
         return Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text(home.getName()))
                         .body(List.of(DialogBody.item(new ItemStack(home.getIcon())).build()))
+                        .pause(false)
                         .afterAction(DialogBase.DialogAfterAction.NONE)
                         .build())
                 .type(DialogType.multiAction(buttons, null, 2)));
@@ -219,6 +221,7 @@ public class HomesDialogService {
         return Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text("Rename " + home.getName()))
                         .inputs(List.of(DialogInput.text("newname", Component.text("New name")).build()))
+                        .pause(false)
                         .afterAction(DialogBase.DialogAfterAction.NONE)
                         .build())
                 .type(DialogType.confirmation(
@@ -250,6 +253,7 @@ public class HomesDialogService {
         return Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text("Search for an Icon"))
                         .inputs(List.of(DialogInput.text("query", Component.text("Item name (blank = show all)")).build()))
+                        .pause(false)
                         .afterAction(DialogBase.DialogAfterAction.NONE)
                         .build())
                 .type(DialogType.confirmation(
@@ -321,6 +325,7 @@ public class HomesDialogService {
         String title = (query == null || query.isBlank()) ? "All Items" : "Results: " + query;
         return Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text(title))
+                        .pause(false)
                         .afterAction(DialogBase.DialogAfterAction.NONE)
                         .build())
                 .type(DialogType.multiAction(buttons, null, columns)));
@@ -343,6 +348,7 @@ public class HomesDialogService {
         return Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text("Set icon to " + prettyName(material) + "?"))
                         .body(List.of(DialogBody.item(new ItemStack(material)).build()))
+                        .pause(false)
                         .afterAction(DialogBase.DialogAfterAction.NONE)
                         .build())
                 .type(DialogType.confirmation(
