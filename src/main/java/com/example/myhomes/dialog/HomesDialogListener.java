@@ -44,7 +44,7 @@ public class HomesDialogListener implements Listener {
         switch (action) {
             case "home" -> {
                 playSound(player, Sound.BLOCK_CHEST_OPEN);
-                player.showDialog(dialogs.buildHomesList(player));
+                showNextTick(player, () -> dialogs.buildHomesList(player));
             }
 
             case "showmore" -> {
@@ -53,7 +53,7 @@ public class HomesDialogListener implements Listener {
                 int rows = plugin.getConfig().getInt("gui.rows", 3);
                 int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
                 dialogs.revealMore(player, columns * rows, hardCap);
-                player.showDialog(dialogs.buildHomesList(player));
+                showNextTick(player, () -> dialogs.buildHomesList(player));
             }
 
             case "showless" -> {
@@ -62,7 +62,7 @@ public class HomesDialogListener implements Listener {
                 int rows = plugin.getConfig().getInt("gui.rows", 3);
                 int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
                 dialogs.revealLess(player, columns * rows, hardCap);
-                player.showDialog(dialogs.buildHomesList(player));
+                showNextTick(player, () -> dialogs.buildHomesList(player));
             }
 
             case "new" -> {
@@ -73,12 +73,12 @@ public class HomesDialogListener implements Listener {
                 } else {
                     player.sendMessage("§aCreated " + created.getName() + " at your current location.");
                 }
-                player.showDialog(dialogs.buildHomesList(player));
+                showNextTick(player, () -> dialogs.buildHomesList(player));
             }
 
             case "open" -> {
                 playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
-                player.showDialog(dialogs.buildHomeDetail(player, Integer.parseInt(arg)));
+                showNextTick(player, () -> dialogs.buildHomeDetail(player, Integer.parseInt(arg)));
             }
 
             case "teleport" -> {
@@ -90,12 +90,12 @@ public class HomesDialogListener implements Listener {
                 playSound(player, Sound.BLOCK_ANVIL_LAND);
                 plugin.getHomeManager().deleteHome(player, home);
                 player.sendMessage("§aDeleted " + home.getName() + ".");
-                player.showDialog(dialogs.buildHomesList(player));
+                showNextTick(player, () -> dialogs.buildHomesList(player));
             });
 
             case "rename" -> {
                 playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
-                player.showDialog(dialogs.buildRenameDialog(player, Integer.parseInt(arg)));
+                showNextTick(player, () -> dialogs.buildRenameDialog(player, Integer.parseInt(arg)));
             }
 
             case "confirmrename" -> {
@@ -106,14 +106,14 @@ public class HomesDialogListener implements Listener {
                 String newName = view.getText("newname");
                 if (newName == null || newName.isBlank()) {
                     player.sendMessage("§cName can't be empty.");
-                    player.showDialog(dialogs.buildHomeDetail(player, index));
+                    showNextTick(player, () -> dialogs.buildHomeDetail(player, index));
                     return;
                 }
                 withHome(homes, arg, home -> {
                     plugin.getHomeManager().renameHome(home, newName.trim());
                     player.sendMessage("§aRenamed to " + newName.trim() + ".");
                 });
-                player.showDialog(dialogs.buildHomesList(player));
+                showNextTick(player, () -> dialogs.buildHomesList(player));
             }
 
             // --- icon flow: search -> results (text only) -> preview (real icon) -> confirm ---
@@ -122,12 +122,12 @@ public class HomesDialogListener implements Listener {
                 playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int index = Integer.parseInt(arg);
                 dialogs.setIconQuery(player, null);
-                player.showDialog(dialogs.buildIconResultsDialog(player, index));
+                showNextTick(player, () -> dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconsearchprompt" -> {
                 playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
-                player.showDialog(dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
+                showNextTick(player, () -> dialogs.buildIconSearchDialog(Integer.parseInt(arg)));
             }
 
             case "iconsearch" -> {
@@ -136,7 +136,7 @@ public class HomesDialogListener implements Listener {
                 DialogResponseView view = event.getDialogResponseView();
                 String query = view == null ? null : view.getText("query");
                 dialogs.setIconQuery(player, query);
-                player.showDialog(dialogs.buildIconResultsDialog(player, index));
+                showNextTick(player, () -> dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconshowmore" -> {
@@ -145,13 +145,13 @@ public class HomesDialogListener implements Listener {
                 int columns = plugin.getConfig().getInt("gui.icon-columns", 4);
                 int rows = plugin.getConfig().getInt("gui.icon-rows", 4);
                 dialogs.revealMoreIcons(player, columns * rows, dialogs.countMatchingIcons(player));
-                player.showDialog(dialogs.buildIconResultsDialog(player, index));
+                showNextTick(player, () -> dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconresults" -> {
                 playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
                 int index = Integer.parseInt(arg);
-                player.showDialog(dialogs.buildIconResultsDialog(player, index));
+                showNextTick(player, () -> dialogs.buildIconResultsDialog(player, index));
             }
 
             case "iconpick" -> {
@@ -160,7 +160,7 @@ public class HomesDialogListener implements Listener {
                 int index = Integer.parseInt(p[0]);
                 Material material = Material.matchMaterial(p[1]);
                 if (material == null) return;
-                player.showDialog(dialogs.buildIconPreviewDialog(index, material));
+                showNextTick(player, () -> dialogs.buildIconPreviewDialog(index, material));
             }
 
             case "iconconfirm" -> {
@@ -174,7 +174,7 @@ public class HomesDialogListener implements Listener {
                         player.sendMessage("§aIcon updated.");
                     });
                 }
-                player.showDialog(dialogs.buildHomeDetail(player, index));
+                showNextTick(player, () -> dialogs.buildHomeDetail(player, index));
             }
 
             default -> { /* unknown action, ignore */ }
@@ -183,6 +183,22 @@ public class HomesDialogListener implements Listener {
 
     private void playSound(Player player, Sound sound) {
         player.playSound(player.getLocation(), sound, 1f, 1f);
+    }
+
+    /**
+     * Paper closes/updates the current dialog as part of handling a custom
+     * dialog click. Opening another dialog from inside the same click event
+     * can race that client update and produce a visible screen flicker.
+     *
+     * Re-open the next dialog on the next server tick so the original click
+     * transaction has finished first.
+     */
+    private void showNextTick(Player player, java.util.function.Supplier<io.papermc.paper.dialog.Dialog> dialog) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                player.showDialog(dialog.get());
+            }
+        });
     }
 
     private void withHome(List<Home> homes, String indexStr, java.util.function.Consumer<Home> action) {
