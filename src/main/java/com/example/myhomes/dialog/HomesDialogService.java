@@ -240,7 +240,7 @@ public class HomesDialogService {
                                 .width(BUTTON_WIDTH)
                                 .action(action((p, view) -> p.showDialog(buildHomeDetail(p, index))))
                                 .build()
-                ));
+                )));
     }
 
     public Dialog buildIconSearchDialog(int index) {
@@ -260,7 +260,7 @@ public class HomesDialogService {
                                 .width(BUTTON_WIDTH)
                                 .action(action((p, view) -> p.showDialog(buildHomeDetail(p, index))))
                                 .build()
-                ));
+                )));
     }
 
     public void setIconQuery(Player player, String query) {
@@ -308,11 +308,11 @@ public class HomesDialogService {
         buttons.add(ActionButton.builder(Component.text("New Search"))
                 .width(BUTTON_WIDTH)
                 .action(action((p, view) -> p.showDialog(buildIconSearchDialog(index))))
-                .build();
+                .build());
         buttons.add(ActionButton.builder(Component.text("Back"))
                 .width(BUTTON_WIDTH)
                 .action(action((p, view) -> p.showDialog(buildHomeDetail(p, index))))
-                .build();
+                .build());
 
         String title = (query == null || query.isBlank()) ? "All Items" : "Results: " + query;
         return Dialog.create(builder -> builder.empty()
@@ -353,7 +353,7 @@ public class HomesDialogService {
                                 .width(BUTTON_WIDTH)
                                 .action(action((p, view) -> p.showDialog(buildIconResultsDialog(p, index))))
                                 .build()
-                ));
+                )));
     }
 
     private String prettyName(Material material) {
