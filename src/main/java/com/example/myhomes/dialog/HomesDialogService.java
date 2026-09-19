@@ -293,7 +293,7 @@ public class HomesDialogService {
                     .width(BUTTON_WIDTH)
                     .action(action((p, view) -> {
                         p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
-                        p.showDialog(buildIconPreviewDialog(p, materialIndex, material));
+                        p.showDialog(buildIconPreviewDialog(materialIndex, material));
                     })).build());
         }
 
@@ -333,7 +333,7 @@ public class HomesDialogService {
                 .count();
     }
 
-    public Dialog buildIconPreviewDialog(Player player, int index, Material material) {
+    public Dialog buildIconPreviewDialog(int index, Material material) {
         return Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text("Set icon to " + prettyName(material) + "?"))
                         .body(List.of(DialogBody.item(new ItemStack(material)).build()))

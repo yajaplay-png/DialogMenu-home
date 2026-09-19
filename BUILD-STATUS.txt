@@ -1,0 +1,3 @@
+Build configuration is Maven-ready for Java 21 / Paper 1.21.11.
+
+Local verification note: this execution environment does not have Maven installed and cannot resolve external Maven repositories, so `mvn clean package` could not be executed here. The repository includes a GitHub Actions workflow that runs the same build command with Java 21.

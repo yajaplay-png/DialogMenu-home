@@ -1,18 +1,11 @@
-# Fallback max homes for a player with no LuckPerms meta set
+# MyHomes configuration
+luckperms-meta-key: homes-limit
 default-max-homes: 3
-
-# Absolute ceiling regardless of rank/meta (matches the "99" you mentioned)
 absolute-max-homes: 99
-
-# LuckPerms meta key read from each rank/group, e.g. group "vip" -> meta "homes-limit: 5"
-luckperms-meta-key: "homes-limit"
-
-# Seconds of standing still before /homes teleport actually happens.
-# Moving during the countdown cancels the teleport.
 teleport-delay-seconds: 5
 
 gui:
-  columns: 4        # how many buttons per row in the Homes list
-  rows: 3           # visible rows per page before "Show More" (4x3 = 12 per page)
-  icon-columns: 4   # how many buttons per row when searching for an icon
+  columns: 4
+  rows: 3
+  icon-columns: 4
   icon-rows: 4

@@ -1,13 +1,18 @@
 name: MyHomes
-version: '1.0.0'
+version: 1.0.0
 main: com.example.myhomes.MyHomesPlugin
 api-version: '1.21'
-depend: [LuckPerms]
+author: MyHomes
+website: https://example.com
+softdepend:
+  - LuckPerms
 commands:
   homes:
-    description: Open the homes GUI
+    description: Open your homes dialog
     usage: /homes
     aliases: [home]
-  sethome:
-    description: Save your current location as a home
-    usage: /sethome <name>
+    permission: myhomes.use
+permissions:
+  myhomes.use:
+    description: Allows use of /homes
+    default: true
