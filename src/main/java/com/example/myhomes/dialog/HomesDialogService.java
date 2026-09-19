@@ -3,18 +3,22 @@ package com.example.myhomes.dialog;
 import com.example.myhomes.Home;
 import com.example.myhomes.MyHomesPlugin;
 import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.dialog.DialogResponseView;
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.DialogBase;
 import io.papermc.paper.registry.data.dialog.action.DialogAction;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
 import io.papermc.paper.registry.data.dialog.input.DialogInput;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
-import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -25,10 +29,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class HomesDialogService {
 
-    private static final String NAMESPACE = "myhomes";
     // vanilla's default button width (200) is huge - keep buttons compact
     private static final int BUTTON_WIDTH = 90;
     // exact hex colors (not a gradient) used for the small-caps styled text
@@ -72,14 +77,6 @@ public class HomesDialogService {
         visibleCount.put(player.getUniqueId(), Math.max(current - batchSize, batchSize));
     }
 
-    // Minecraft Keys only allow [a-z0-9_\-./]+, so home names (which can have
-    // spaces/uppercase) can NEVER go directly into a Key. We reference homes
-    // by their list index instead (e.g. "open/0") and look the name up from
-    // the player's home list when handling the click.
-    private Key key(String value) {
-        return Key.key(NAMESPACE, value);
-    }
-
     /**
      * The main "Homes" screen: existing homes, green "New Home" slots up to
      * the player's rank limit, and red "Locked" slots up to the absolute cap.
@@ -103,13 +100,13 @@ public class HomesDialogService {
                 buttons.add(ActionButton.builder(Component.text(home.getName()))
                         .width(BUTTON_WIDTH)
                         .tooltip(Component.text("Click to manage this home"))
-                        .action(DialogAction.customClick(key("open/" + i), null))
+                        .action(callback(p -> p.showDialog(buildHomeDetail(p, i))))
                         .build());
             } else if (i < rankMax) {
                 buttons.add(ActionButton.builder(Component.text("New Home", NamedTextColor.GREEN))
                         .width(BUTTON_WIDTH)
                         .tooltip(Component.text("Save your current location as a home"))
-                        .action(DialogAction.customClick(key("new"), null))
+                        .action(callback(p -> createHomeAndShow(p)))
                         .build());
             } else {
                 buttons.add(ActionButton.builder(Component.text("Locked", NamedTextColor.RED))
@@ -122,13 +119,13 @@ public class HomesDialogService {
         if (visible < hardCap) {
             buttons.add(ActionButton.builder(Component.text("Show More"))
                         .width(BUTTON_WIDTH)
-                    .action(DialogAction.customClick(key("showmore"), null))
+                    .action(callback(this::showMoreHomes))
                     .build());
         }
         if (visible > batch) {
             buttons.add(ActionButton.builder(Component.text("Previous"))
                         .width(BUTTON_WIDTH)
-                    .action(DialogAction.customClick(key("showless"), null))
+                    .action(callback(this::showLessHomes))
                     .build());
         }
 
@@ -150,23 +147,23 @@ public class HomesDialogService {
         List<ActionButton> buttons = List.of(
                 ActionButton.builder(Component.text("Teleport"))
                         .width(BUTTON_WIDTH)
-                        .action(DialogAction.customClick(key("teleport/" + index), null))
+                        .action(callback(p -> teleport(p, index)))
                         .build(),
                 ActionButton.builder(Component.text("Change Icon"))
                         .width(BUTTON_WIDTH)
-                        .action(DialogAction.customClick(key("icon/" + index), null))
+                        .action(callback(p -> openIcons(p, index)))
                         .build(),
                 ActionButton.builder(Component.text("Rename"))
                         .width(BUTTON_WIDTH)
-                        .action(DialogAction.customClick(key("rename/" + index), null))
+                        .action(callback(p -> p.showDialog(buildRenameDialog(p, index))))
                         .build(),
                 ActionButton.builder(Component.text("Delete", NamedTextColor.RED))
                         .width(BUTTON_WIDTH)
-                        .action(DialogAction.customClick(key("delete/" + index), null))
+                        .action(callback(p -> deleteHome(p, index)))
                         .build(),
                 ActionButton.builder(Component.text("Back"))
                         .width(BUTTON_WIDTH)
-                        .action(DialogAction.customClick(key("home"), null))
+                        .action(callback(p -> p.showDialog(buildHomesList(p))))
                         .build()
         );
 
@@ -195,11 +192,11 @@ public class HomesDialogService {
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Confirm"))
                         .width(BUTTON_WIDTH)
-                                .action(DialogAction.customClick(key("confirmrename/" + index), null))
+                                .action(inputCallback((p, view) -> confirmRename(p, index, view)))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
                         .width(BUTTON_WIDTH)
-                                .action(DialogAction.customClick(key("open/" + index), null))
+                                .action(callback(p -> p.showDialog(buildHomeDetail(p, index))))
                                 .build()
                 )));
     }
@@ -217,11 +214,11 @@ public class HomesDialogService {
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Search"))
                         .width(BUTTON_WIDTH)
-                                .action(DialogAction.customClick(key("iconsearch/" + index), null))
+                                .action(inputCallback((p, view) -> searchIcons(p, index, view)))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
                         .width(BUTTON_WIDTH)
-                                .action(DialogAction.customClick(key("open/" + index), null))
+                                .action(callback(p -> p.showDialog(buildHomeDetail(p, index))))
                                 .build()
                 )));
     }
@@ -264,23 +261,23 @@ public class HomesDialogService {
             Material material = pool.get(i);
             buttons.add(ActionButton.builder(Component.text(prettyName(material)))
                         .width(BUTTON_WIDTH)
-                    .action(DialogAction.customClick(key("iconpick/" + index + "/" + material.name().toLowerCase(Locale.ROOT)), null))
+                    .action(callback(p -> p.showDialog(buildIconPreviewDialog(index, material))))
                     .build());
         }
 
         if (visible < pool.size()) {
             buttons.add(ActionButton.builder(Component.text("Show More"))
                         .width(BUTTON_WIDTH)
-                    .action(DialogAction.customClick(key("iconshowmore/" + index), null))
+                    .action(callback(p -> showMoreIcons(p, index)))
                     .build());
         }
         buttons.add(ActionButton.builder(Component.text("New Search"))
                         .width(BUTTON_WIDTH)
-                .action(DialogAction.customClick(key("iconsearchprompt/" + index), null))
+                .action(callback(p -> p.showDialog(buildIconSearchDialog(index))))
                 .build());
         buttons.add(ActionButton.builder(Component.text("Back"))
                         .width(BUTTON_WIDTH)
-                .action(DialogAction.customClick(key("open/" + index), null))
+                .action(callback(p -> p.showDialog(buildHomeDetail(p, index))))
                 .build());
 
         String title = (query == null || query.isBlank()) ? "All Items" : "Results: " + query;
@@ -316,13 +313,191 @@ public class HomesDialogService {
                 .type(DialogType.confirmation(
                         ActionButton.builder(Component.text("Confirm"))
                         .width(BUTTON_WIDTH)
-                                .action(DialogAction.customClick(key("iconconfirm/" + index + "/" + material.name().toLowerCase(Locale.ROOT)), null))
+                                .action(callback(p -> confirmIcon(p, index, material)))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel"))
                         .width(BUTTON_WIDTH)
-                                .action(DialogAction.customClick(key("iconresults/" + index), null))
+                                .action(callback(p -> p.showDialog(buildIconResultsDialog(p, index))))
                                 .build()
                 )));
+    }
+
+
+    /*
+     * IMPORTANT:
+     * Internal navigation uses Paper's callback API instead of
+     * PlayerCustomClickEvent + showDialog(). The old event flow caused the
+     * client to close the current dialog and then wait for another packet.
+     *
+     * Callbacks can be delivered off the main thread, so every Bukkit/Paper
+     * mutation is dispatched back to the server thread.
+     */
+    private ClickCallback.Options callbackOptions() {
+        return ClickCallback.Options.builder()
+                .uses(1)
+                .lifetime(ClickCallback.DEFAULT_LIFETIME)
+                .build();
+    }
+
+    private DialogAction callback(Consumer<Player> handler) {
+        return DialogAction.customClick((view, audience) -> {
+            if (!(audience instanceof Player player)) return;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (player.isOnline()) {
+                    handler.accept(player);
+                }
+            });
+        }, callbackOptions());
+    }
+
+    private DialogAction inputCallback(BiConsumer<Player, DialogResponseView> handler) {
+        return DialogAction.customClick((view, audience) -> {
+            if (!(audience instanceof Player player) || view == null) return;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (player.isOnline()) {
+                    handler.accept(player, view);
+                }
+            });
+        }, callbackOptions());
+    }
+
+    private void createHomeAndShow(Player player) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        Home created = plugin.getHomeManager().createHome(player);
+        if (created == null) {
+            player.sendMessage("§cYou've reached your home limit for your current rank.");
+        } else {
+            player.sendMessage("§aCreated " + created.getName() + " at your current location.");
+        }
+        player.showDialog(buildHomesList(player));
+    }
+
+    private void showMoreHomes(Player player) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        int columns = plugin.getConfig().getInt("gui.columns", 4);
+        int rows = plugin.getConfig().getInt("gui.rows", 3);
+        int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
+        revealMore(player, columns * rows, hardCap);
+        player.showDialog(buildHomesList(player));
+    }
+
+    private void showLessHomes(Player player) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        int columns = plugin.getConfig().getInt("gui.columns", 4);
+        int rows = plugin.getConfig().getInt("gui.rows", 3);
+        int hardCap = plugin.getConfig().getInt("absolute-max-homes", 99);
+        revealLess(player, columns * rows, hardCap);
+        player.showDialog(buildHomesList(player));
+    }
+
+    private void openIcons(Player player, int index) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        setIconQuery(player, null);
+        player.showDialog(buildIconResultsDialog(player, index));
+    }
+
+    private void deleteHome(Player player, int index) {
+        List<Home> homes = plugin.getHomeManager().getHomes(player);
+        if (index < 0 || index >= homes.size()) return;
+        Home home = homes.get(index);
+        playSound(player, Sound.BLOCK_ANVIL_LAND);
+        plugin.getHomeManager().deleteHome(player, home);
+        player.sendMessage("§aDeleted " + home.getName() + ".");
+        player.showDialog(buildHomesList(player));
+    }
+
+    private void confirmRename(Player player, int index, DialogResponseView view) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        String newName = view.getText("newname");
+        if (newName == null || newName.isBlank()) {
+            player.sendMessage("§cName can't be empty.");
+            player.showDialog(buildHomeDetail(player, index));
+            return;
+        }
+
+        List<Home> homes = plugin.getHomeManager().getHomes(player);
+        if (index < 0 || index >= homes.size()) return;
+        Home home = homes.get(index);
+        plugin.getHomeManager().renameHome(home, newName.trim());
+        player.sendMessage("§aRenamed to " + newName.trim() + ".");
+        player.showDialog(buildHomesList(player));
+    }
+
+    private void searchIcons(Player player, int index, DialogResponseView view) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        String query = view.getText("query");
+        setIconQuery(player, query);
+        player.showDialog(buildIconResultsDialog(player, index));
+    }
+
+    private void showMoreIcons(Player player, int index) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        int columns = plugin.getConfig().getInt("gui.icon-columns", 4);
+        int rows = plugin.getConfig().getInt("gui.icon-rows", 4);
+        revealMoreIcons(player, columns * rows, countMatchingIcons(player));
+        player.showDialog(buildIconResultsDialog(player, index));
+    }
+
+    private void confirmIcon(Player player, int index, Material material) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        List<Home> homes = plugin.getHomeManager().getHomes(player);
+        if (index < 0 || index >= homes.size()) return;
+        Home home = homes.get(index);
+        home.setIcon(material);
+        player.sendMessage("§aIcon updated.");
+        player.showDialog(buildHomeDetail(player, index));
+    }
+
+    private void teleport(Player player, int index) {
+        playSound(player, Sound.BLOCK_NOTE_BLOCK_PLING);
+        List<Home> homes = plugin.getHomeManager().getHomes(player);
+        if (index < 0 || index >= homes.size()) return;
+        startTeleportCountdown(player, homes.get(index));
+    }
+
+    private void playSound(Player player, Sound sound) {
+        player.playSound(player.getLocation(), sound, 1f, 1f);
+    }
+
+    private void startTeleportCountdown(Player player, Home home) {
+        int delay = plugin.getConfig().getInt("teleport-delay-seconds", 5);
+        Location startLocation = player.getLocation();
+        Location destination = home.getLocation();
+        String homeName = home.getName();
+
+        final org.bukkit.scheduler.BukkitTask[] taskHolder = new org.bukkit.scheduler.BukkitTask[1];
+        final int[] remaining = {delay};
+
+        taskHolder[0] = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!player.isOnline()) {
+                taskHolder[0].cancel();
+                return;
+            }
+            if (hasMoved(player.getLocation(), startLocation)) {
+                player.sendActionBar(Component.text("Teleport cancelled - you moved!", NamedTextColor.RED));
+                taskHolder[0].cancel();
+                return;
+            }
+            if (remaining[0] <= 0) {
+                player.teleport(destination);
+                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
+                player.sendActionBar(Component.text("Teleported to " + homeName + ".", NamedTextColor.GREEN));
+                taskHolder[0].cancel();
+                return;
+            }
+            Component countdown = Component.text("ᴛᴇʟᴇᴘᴏʀᴛ", BLUE)
+                    .append(Component.text(" ɪɴ ", WHITE))
+                    .append(Component.text(remaining[0], BLUE))
+                    .append(Component.text("...", WHITE));
+            player.sendActionBar(countdown);
+            remaining[0]--;
+        }, 0L, 20L);
+    }
+
+    private boolean hasMoved(Location current, Location start) {
+        if (current.getWorld() == null || start.getWorld() == null
+                || !current.getWorld().equals(start.getWorld())) return true;
+        return current.distanceSquared(start) > 0.01;
     }
 
     private String prettyName(Material material) {
